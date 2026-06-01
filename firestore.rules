@@ -1,0 +1,260 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny Catch-all)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY UTILITIES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUserAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'adamsmuema19@gmail.com'
+        || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'
+        )
+      );
+    }
+
+    // Check if the ID matches alphanumeric characters and is of correct length
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- USERS COLLECTION RULES ---
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn() 
+        && (userId == request.auth.uid || isUserAdmin()) 
+        && isValidUserCreate(incoming());
+        
+      allow update: if isSignedIn() 
+        && (userId == request.auth.uid || isUserAdmin()) 
+        && isValidUserUpdate(incoming(), existing());
+
+      allow delete: if isSignedIn() && isUserAdmin();
+    }
+
+    function isValidUserCreate(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt']) 
+        && (data.keys().size() == 5 || (data.keys().size() == 6 && data.keys().hasAll(['role'])))
+        && (data.uid == request.auth.uid || isUserAdmin())
+        && data.email is string && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() <= 200
+        && data.photoURL is string && data.photoURL.size() <= 2000
+        && data.createdAt == request.time;
+    }
+
+    function isValidUserUpdate(incoming, existing) {
+      return incoming.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt']) 
+        && (incoming.keys().size() == 5 || (incoming.keys().size() == 6 && incoming.keys().hasAll(['role'])))
+        && (incoming.uid == existing.uid || isUserAdmin())
+        && incoming.createdAt == existing.createdAt
+        && incoming.email is string && incoming.email.size() <= 200
+        && incoming.displayName is string && incoming.displayName.size() <= 200
+        && incoming.photoURL is string && incoming.photoURL.size() <= 2000;
+    }
+
+    // --- FILES COLLECTION RULES ---
+    match /files/{fileId} {
+      // List/Query files
+      allow list: if isSignedIn();
+      
+      // Get a single file based on public access, ownership, or approved access request
+      allow get: if isSignedIn() && (
+        resource.data.permissionSetting == 'public'
+        || resource.data.ownerId == request.auth.uid
+        || exists(/databases/$(database)/documents/downloadRequests/$(fileId + '_' + request.auth.uid)) 
+           && get(/databases/$(database)/documents/downloadRequests/$(fileId + '_' + request.auth.uid)).data.status == 'approved'
+      );
+
+      allow create: if isSignedIn() 
+        && isValidId(fileId) 
+        && isValidFileCreate(incoming());
+        
+      allow update: if isSignedIn() 
+        && (
+          isUserAdmin() || (
+            isValidFileUpdate(incoming(), existing())
+            && (
+              // Action 1: Owner updates settings or description
+              (existing().ownerId == request.auth.uid 
+                && incoming().diff(existing()).affectedKeys().hasOnly(['permissionSetting', 'description', 'commentsAllowed']))
+              ||
+              // Action 2: User votes (updates counter and voter map)
+              (incoming().diff(existing()).affectedKeys().hasOnly(['upvotesCount', 'downvotesCount', 'voters'])
+                && incoming().voters.keys().size() <= 10000)
+            )
+          )
+        );
+        
+      allow delete: if isSignedIn() 
+        && (resource.data.ownerId == request.auth.uid || isUserAdmin());
+    }
+
+    function isValidFileCreate(data) {
+      return data.keys().hasAll(['fileId', 'ownerId', 'ownerEmail', 'ownerName', 'name', 'type', 'url', 'storagePath', 'size', 'permissionSetting', 'description', 'commentsAllowed', 'upvotesCount', 'downvotesCount', 'voters', 'createdAt']) 
+        && data.keys().size() == 16
+        && data.fileId == request.resource.id
+        && data.ownerId == request.auth.uid
+        && data.ownerEmail is string && data.ownerEmail.size() <= 200
+        && data.ownerName is string && data.ownerName.size() <= 200
+        && data.name is string && data.name.size() <= 255
+        && data.type in ['image', 'video', 'audio']
+        && data.url is string && data.url.size() <= 1000000
+        && data.storagePath is string && data.storagePath.size() <= 1000
+        && data.size is int && data.size >= 0
+        && data.permissionSetting in ['public', 'restricted']
+        && data.description is string && data.description.size() <= 1000
+        && data.commentsAllowed is bool
+        && data.upvotesCount == 0
+        && data.downvotesCount == 0
+        && data.voters is map
+        && data.createdAt == request.time;
+    }
+
+    function isValidFileUpdate(incoming, existing) {
+      return incoming.keys().hasAll(['fileId', 'ownerId', 'ownerEmail', 'ownerName', 'name', 'type', 'url', 'storagePath', 'size', 'permissionSetting', 'description', 'commentsAllowed', 'upvotesCount', 'downvotesCount', 'voters', 'createdAt']) 
+        && incoming.keys().size() == 16
+        && incoming.fileId == existing.fileId
+        && incoming.ownerId == existing.ownerId
+        && incoming.type == existing.type
+        && incoming.createdAt == existing.createdAt
+        && incoming.ownerEmail == existing.ownerEmail
+        && incoming.ownerName == existing.ownerName
+        && incoming.name == existing.name
+        && incoming.url == existing.url
+        && incoming.storagePath == existing.storagePath
+        && incoming.size == existing.size;
+    }
+
+    // --- DOWNLOAD REQUESTS COLLECTION RULES ---
+    match /downloadRequests/{requestId} {
+      // Ensure requestId is {fileId}_{requesterId}
+      allow get, list: if isSignedIn() && (
+        resource.data.requesterId == request.auth.uid 
+        || resource.data.fileOwnerId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() 
+        && isValidId(requestId) 
+        && incoming().requesterId == request.auth.uid
+        && requestId == (incoming().fileId + '_' + request.auth.uid)
+        && exists(/databases/$(database)/documents/files/$(incoming().fileId))
+        && isValidDownloadRequestCreate(incoming());
+
+      allow update: if isSignedIn() 
+        && (
+          // File Owner approvals / rejections
+          (resource.data.fileOwnerId == request.auth.uid 
+           && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
+           && incoming().status in ['approved', 'rejected'] 
+           && incoming().updatedAt == request.time)
+          ||
+          // Requester Cancelling the request
+          (resource.data.requesterId == request.auth.uid 
+           && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) 
+           && incoming().status == 'pending' 
+           && incoming().updatedAt == request.time)
+        );
+    }
+
+    function isValidDownloadRequestCreate(data) {
+      return data.keys().hasAll(['requestId', 'fileId', 'fileName', 'fileType', 'fileOwnerId', 'fileOwnerEmail', 'requesterId', 'requesterEmail', 'requesterName', 'status', 'createdAt', 'updatedAt']) 
+        && data.keys().size() == 12
+        && data.fileId is string && data.fileId.size() <= 128
+        && data.fileName is string && data.fileName.size() <= 255
+        && data.fileType in ['image', 'video', 'audio']
+        && data.fileOwnerId is string && data.fileOwnerId.size() <= 128
+        && data.fileOwnerEmail is string && data.fileOwnerEmail.size() <= 200
+        && data.requesterId == request.auth.uid
+        && data.requesterEmail is string && data.requesterEmail.size() <= 200
+        && data.requesterName is string && data.requesterName.size() <= 200
+        && data.status == 'pending'
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    // --- COMMENTS COLLECTION RULES ---
+    match /comments/{commentId} {
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn()
+        && isValidId(commentId)
+        && isValidCommentCreate(incoming())
+        // Enforce commentsAllowed on the file document
+        && get(/databases/$(database)/documents/files/$(incoming().fileId)).data.commentsAllowed == true;
+        
+      allow delete: if isSignedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || get(/databases/$(database)/documents/files/$(resource.data.fileId)).data.ownerId == request.auth.uid
+          || isUserAdmin()
+        );
+    }
+
+    function isValidCommentCreate(data) {
+      return data.keys().hasAll(['commentId', 'fileId', 'userId', 'userName', 'userEmail', 'text', 'createdAt'])
+        && data.keys().size() == 7
+        && data.commentId == request.resource.id
+        && data.fileId is string && data.fileId.size() <= 128
+        && data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() <= 200
+        && data.userEmail is string && data.userEmail.size() <= 200
+        && data.text is string && data.text.size() <= 1000
+        && data.createdAt == request.time;
+    }
+
+    // --- CONTACT DETAILS COLLECTION RULES ---
+    match /contacts/{contactId} {
+      allow create: if isValidId(contactId) && isValidContact(incoming());
+      allow read, update, delete: if isSignedIn() && isUserAdmin();
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['contactId', 'name', 'email', 'message', 'createdAt']) 
+        && (data.keys().size() == 5 || data.keys().size() == 8) // Allows admin updates (replyText, repliedAt, repliedBy)
+        && data.contactId == request.resource.id
+        && data.name is string && data.name.size() <= 200
+        && data.email is string && data.email.size() <= 200
+        && data.message is string && data.message.size() <= 5000
+        && data.createdAt == request.time;
+    }
+
+    // --- SUPPORT INBOX MESSAGES COLLECTION RULES ---
+    match /messages/{messageId} {
+      allow list, get: if isSignedIn() && (
+        resource.data.threadId == request.auth.token.email 
+        || resource.data.senderEmail == request.auth.token.email
+        || isUserAdmin()
+      );
+      
+      allow create: if isSignedIn() 
+        && isValidId(messageId)
+        && (
+          incoming().threadId == request.auth.token.email
+          || isUserAdmin()
+        )
+        && incoming().senderEmail == request.auth.token.email
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isSignedIn() && isUserAdmin();
+    }
+  }
+}

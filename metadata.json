@@ -1,0 +1,6 @@
+{
+  "name": "MuemaSafeShare",
+  "description": "A secure file-sharing platform styled like Google Drive where users can upload media and regulate downloads with real-time approvals and notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

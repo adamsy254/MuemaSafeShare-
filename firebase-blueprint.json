@@ -1,0 +1,256 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile document containing non-sensitive details stored by UID",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique Firebase Authentication user ID"
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name of the user"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "The photo URL of the user avatar"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Verification timestamp of profile generation"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "FileMetadata": {
+      "title": "File Metadata",
+      "description": "Metadata for uploaded files (images, videos, audio)",
+      "type": "object",
+      "properties": {
+        "fileId": {
+          "type": "string",
+          "description": "Unique identifier of the file"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the file owner"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "description": "Email address of the file owner"
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Display name of the file owner"
+        },
+        "name": {
+          "type": "string",
+          "description": "Original file name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["image", "video", "audio"],
+          "description": "Categorized media type of the file"
+        },
+        "url": {
+          "type": "string",
+          "description": "The accessible download URL from Firebase Storage"
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "The internal storage reference path used for deletion"
+        },
+        "size": {
+          "type": "number",
+          "description": "The size of the file in bytes"
+        },
+        "permissionSetting": {
+          "type": "string",
+          "enum": ["public", "restricted"],
+          "description": "The download permission access configuration"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional file owner description"
+        },
+        "commentsAllowed": {
+          "type": "boolean",
+          "description": "Whether commenting on this file is enabled"
+        },
+        "upvotesCount": {
+          "type": "number",
+          "description": "Total upvotes count"
+        },
+        "downvotesCount": {
+          "type": "number",
+          "description": "Total downvotes count"
+        },
+        "voters": {
+          "type": "object",
+          "description": "Key-value of user ids to their vote (up, down)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the file upload"
+        }
+      },
+      "required": ["fileId", "ownerId", "ownerEmail", "ownerName", "name", "type", "url", "storagePath", "size", "permissionSetting", "createdAt"]
+    },
+    "Comment": {
+      "title": "File Comment",
+      "description": "Comment posted by a user on a file",
+      "type": "object",
+      "properties": {
+        "commentId": {
+          "type": "string",
+          "description": "Unique identifier of the comment"
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Reference fileId"
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of commenter"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display name of commenter"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Email coordinates of commenter"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text body of comment"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp of comment"
+        }
+      },
+      "required": ["commentId", "fileId", "userId", "userName", "userEmail", "text", "createdAt"]
+    },
+    "DownloadRequest": {
+      "title": "Download Access Request",
+      "description": "Requests created by users to obtain permissions to download restricted files",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "Uniquely formed ID: {fileId}_{requesterId}"
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Identifies which file is requested"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original name of the requested file"
+        },
+        "fileType": {
+          "type": "string",
+          "enum": ["image", "video", "audio"],
+          "description": "Media type of the requested file"
+        },
+        "fileOwnerId": {
+          "type": "string",
+          "description": "Owner of the target file"
+        },
+        "fileOwnerEmail": {
+          "type": "string",
+          "description": "Owner email address"
+        },
+        "requesterId": {
+          "type": "string",
+          "description": "UID of the requesting user"
+        },
+        "requesterEmail": {
+          "type": "string",
+          "description": "Email coordinates of the requester"
+        },
+        "requesterName": {
+          "type": "string",
+          "description": "Display name of the requester"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "The resolution state of this download request"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The request creation time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The last modification timestamp of this request"
+        }
+      },
+      "required": ["requestId", "fileId", "fileName", "fileType", "fileOwnerId", "fileOwnerEmail", "requesterId", "requesterEmail", "requesterName", "status", "createdAt", "updatedAt"]
+    },
+    "ContactSubmission": {
+      "title": "Contact Form Submission",
+      "description": "Structured submissions received from the Contact Us channel",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string",
+          "description": "Unique identifier of the contact event"
+        },
+        "name": {
+          "type": "string",
+          "description": "Sender name"
+        },
+        "email": {
+          "type": "string",
+          "description": "Sender email contact"
+        },
+        "message": {
+          "type": "string",
+          "description": "Substance of the contact message"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Arrival timeline of submission"
+        }
+      },
+      "required": ["contactId", "name", "email", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID"
+    },
+    "files/{fileId}": {
+      "schema": "FileMetadata",
+      "description": "Files meta specifications"
+    },
+    "downloadRequests/{requestId}": {
+      "schema": "DownloadRequest",
+      "description": "Permissions negotiation log indexed by fileId_requesterId"
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "User posts feedback comments log on files"
+    },
+    "contacts/{contactId}": {
+      "schema": "ContactSubmission",
+      "description": "Feedback entries log"
+    }
+  }
+}

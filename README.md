@@ -26,6 +26,12 @@ MuemaSafeShare is a comprehensive file-sharing platform that prioritizes securit
 - **Authentication**: JWT-based security
 - **API**: RESTful architecture with proper validation
 
+## 📸 Screenshots
+
+<div align="center">
+<img width="100%" alt="MuemaSafeShare Screenshot" src="./screenshot.png" />
+</div>
+
 ## 🚀 How to Run Locally
 
 ### 🔧 Prerequisites

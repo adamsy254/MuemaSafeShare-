@@ -1,6 +1,10 @@
+## 🎨 Features Overview
+
 <div align="center">
-<img width="1200" height="475" alt="SafeShare Banner" src="https://via.placeholder.com/1200x475?text=SafeShare+-+Secure+File+Sharing" />
+<img width="100%" alt="MuemaSafeShare Features" src="image.png" />
 </div>
+
+*Visual overview of SafeShare's key features*
 
 # 🔒 MuemaSafeShare - Secure File Sharing Platform
 
